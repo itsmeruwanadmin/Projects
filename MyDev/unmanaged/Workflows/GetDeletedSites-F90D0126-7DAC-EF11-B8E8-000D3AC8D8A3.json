@@ -1,0 +1,323 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_sharepointonline": {
+        "runtimeSource": "invoker",
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedsharepointonline_63e6c"
+        },
+        "api": {
+          "name": "shared_sharepointonline"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Button",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {},
+              "required": []
+            }
+          }
+        }
+      },
+      "actions": {
+        "Send_an_HTTP_request_to_SharePoint": {
+          "runAfter": {},
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://q2c7-admin.sharepoint.com/",
+              "parameters/method": "POST",
+              "parameters/uri": "/_api/contextinfo",
+              "parameters/headers": {
+                "accept": "application/json;odata=nometadata"
+              },
+              "parameters/body": "FormDigestValue"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "HttpRequest"
+            },
+            "authentication": {
+              "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+              "type": "Raw"
+            }
+          }
+        },
+        "Parse_JSON": {
+          "runAfter": {
+            "Send_an_HTTP_request_to_SharePoint": [
+              "Succeeded"
+            ]
+          },
+          "type": "ParseJson",
+          "inputs": {
+            "content": "@body('Send_an_HTTP_request_to_SharePoint')",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "FormDigestTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "FormDigestValue": {
+                  "type": "string"
+                },
+                "LibraryVersion": {
+                  "type": "string"
+                },
+                "SiteFullUrl": {
+                  "type": "string"
+                },
+                "SupportedSchemaVersions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "WebFullUrl": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Send_an_HTTP_request_to_SharePoint_1": {
+          "runAfter": {
+            "Parse_JSON": [
+              "Succeeded"
+            ]
+          },
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "dataset": "https://q2c7-admin.sharepoint.com/",
+              "parameters/method": "POST",
+              "parameters/uri": "/_vti_bin/client.svc/ProcessQuery",
+              "parameters/headers": {
+                "X-RequestDigest": "@{body('Parse_JSON')?['FormDigestValue']}"
+              },
+              "parameters/body": "<Request AddExpandoFieldTypeSuffix=\"true\" SchemaVersion=\"15.0.0.0\" LibraryVersion=\"16.0.0.0\" ApplicationName=\"PowerAutomate\" xmlns=\"http://schemas.microsoft.com/sharepoint/clientquery/2009\">\n  <Actions>\n    <ObjectPath Id=\"2\" ObjectPathId=\"1\" />\n    <ObjectPath Id=\"4\" ObjectPathId=\"3\" />\n    <Query Id=\"5\" ObjectPathId=\"3\">\n      <Query SelectAllProperties=\"false\">\n        <Properties />\n      </Query>\n      <ChildItemQuery SelectAllProperties=\"true\">\n        <Properties>\n          <Property Name=\"Url\" ScalarProperty=\"true\" />\n          <Property Name=\"SiteId\" ScalarProperty=\"true\" />\n          <Property Name=\"DaysRemaining\" ScalarProperty=\"true\" />\n          <Property Name=\"Status\" ScalarProperty=\"true\" />\n        </Properties>\n      </ChildItemQuery>\n    </Query>\n  </Actions>\n  <ObjectPaths>\n    <Constructor Id=\"1\" TypeId=\"{268004ae-ef6b-4e9b-8425-127220d84719}\" />\n    <Method Id=\"3\" ParentId=\"1\" Name=\"GetDeletedSitePropertiesFromSharePoint\">\n      <Parameters>\n        <Parameter Type=\"String\">0</Parameter>\n      </Parameters>\n    </Method>\n  </ObjectPaths>\n</Request>\n"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "HttpRequest"
+            },
+            "authentication": {
+              "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+              "type": "Raw"
+            }
+          }
+        },
+        "ParseJSONOfTheDeletedSites": {
+          "runAfter": {
+            "Send_an_HTTP_request_to_SharePoint_1": [
+              "Succeeded"
+            ]
+          },
+          "type": "ParseJson",
+          "inputs": {
+            "content": "@body('Send_an_HTTP_request_to_SharePoint_1')",
+            "schema": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "SchemaVersion": {
+                        "type": "string"
+                      },
+                      "LibraryVersion": {
+                        "type": "string"
+                      },
+                      "ErrorInfo": {
+                        "type": "null"
+                      },
+                      "TraceCorrelationId": {
+                        "type": "string"
+                      },
+                      "_Child_Items_": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "Url": {
+                              "type": "string"
+                            },
+                            "ArchiveStatus": {
+                              "type": "string"
+                            },
+                            "DaysRemaining": {
+                              "type": "integer"
+                            },
+                            "DeletionTime": {
+                              "type": "string"
+                            },
+                            "SiteId": {
+                              "type": "string"
+                            },
+                            "Status": {
+                              "type": "string"
+                            },
+                            "StorageMaximumLevel": {
+                              "type": "integer"
+                            },
+                            "UserCodeMaximumLevel": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "SelectUrls": {
+          "runAfter": {
+            "Compose": [
+              "Succeeded"
+            ]
+          },
+          "type": "Select",
+          "inputs": {
+            "from": "@outputs('Compose')",
+            "select": {
+              "Url": "@toLower(trim(item()?['Url']))"
+            }
+          }
+        },
+        "Compose": {
+          "runAfter": {
+            "ParseJSONOfTheDeletedSites": [
+              "Succeeded"
+            ]
+          },
+          "type": "Compose",
+          "inputs": "@body('ParseJSONOfTheDeletedSites')?[6]?['_Child_Items_']"
+        },
+        "Condition_IfSiteDeleted": {
+          "actions": {
+            "Respond_to_a_Power_App_or_flow": {
+              "type": "Response",
+              "kind": "PowerApp",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "a": {
+                      "title": "a",
+                      "type": "string",
+                      "x-ms-content-hint": "TEXT",
+                      "x-ms-dynamically-added": true
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "statusCode": 200,
+                "body": {
+                  "a": "@concat('https://sagov.sharepoint.com', triggerBody()?['location']?['fullAddress'])"
+                }
+              }
+            },
+            "Compose_3": {
+              "runAfter": {
+                "Respond_to_a_Power_App_or_flow": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose",
+              "inputs": "@json(outputs('Compose_SiteUrl'))"
+            }
+          },
+          "runAfter": {
+            "Scope": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {
+              "Compose_1-copy": {
+                "type": "Compose",
+                "inputs": "@body('SelectUrls')"
+              }
+            }
+          },
+          "expression": {
+            "and": [
+              {
+                "contains": [
+                  "@body('SelectUrls')",
+                  "@json(outputs('Compose_SiteUrl'))"
+                ]
+              }
+            ]
+          },
+          "type": "If"
+        },
+        "Compose_SiteUrl": {
+          "runAfter": {
+            "SelectUrls": [
+              "Succeeded"
+            ]
+          },
+          "type": "Compose",
+          "inputs": "@concat('{\"Url\":\"', toLower('https://q2c7.sharepoint.com/sites/Mark8ProjectTeam'), toLower(coalesce(triggerBody()?['text'], '')), '\"}')"
+        },
+        "Scope": {
+          "actions": {
+            "ConditionIfSiteDeleted": {
+              "actions": {},
+              "else": {
+                "actions": {}
+              },
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      1,
+                      0
+                    ]
+                  }
+                ]
+              },
+              "type": "If"
+            }
+          },
+          "runAfter": {
+            "Compose_SiteUrl": [
+              "Succeeded"
+            ]
+          },
+          "type": "Scope"
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}
