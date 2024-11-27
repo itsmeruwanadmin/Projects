@@ -1,0 +1,79 @@
+Email
+
+Could you please provide details on the disaster recovery and business continuity plan for the SharePoint server and SQL Server, the process for updating Windows and SharePoint cumulative updates, who is responsible for these updates, and the rollback plan?
+
+What type of server drives in use for e.g.
+Types include:
+Hard Disk Drives (HDDs): Traditional drives with spinning platters, offering large storage capacities at a lower cost but slower speeds compared to SSDs1.
+Solid-State Drives (SSDs): Use flash memory for faster data access and improved performance.
+Hybrid Drives (SSHDs): Combine HDD and SSD technologies to balance cost, capacity, and performance
+
+help with the question: ask for improve perforamcne of the sharepoint server.
+
+business continuity (down to the business unit not IT) and disaster recover(provide details and how to do it): ASK we do not do
+
+what do you going to do if the hardware failure or data loss. 
+
+we can guide them. 
+ 
+
+
+Document changes
+
+
+executive summary
+hight the risk 
+single point of failure in the  SharePoint and DB server. you have experienced performance issue what happens if there is a hardware failure. 
+
+
+if its in a rack the server will overheat. if the processor fails it will damage the motherboard. if its a RAM failiure you could fix it by replacing it but if the processor fail it will damage the motherboard if that is in the same rack overheat.
+
+if the their disk fail. restore the disk from the backup.
+
+
+
+Recommendations
+Upgrade RAM from 32GB
+indicate the indexed columsns in the recommends
+in the recommendation the recordpoint server 
+bookmark and planceholder to in the recommendation to the explanattions.
+1. double RAM examing disk performance
+2. high performing SSDS
+3. Network drive:  
+
+
+
+sp2019 server farm would look like: 
+minimum recommendation to the sharepoint farm 4 server 2 app 2 wfe
+
+Microsoft recommendation for medium size server farm
+2 WFE
+2 App
+1 RecordPoint
+
+too many single point of failure.
+
+
+
+
+
+
+
+
+threshould
+indicate the 5000 recommended that is what is recommended. 12 time abouve the recommended value. 50% of the current value. 
+
+
+
+
+more analysis
+
+hardware supplier: Help with details and questions
+memerory: 1 Hr downtimee
+processor: if motherboard support higher spec. if socked ratherthan hardware to motherboard. 1 Hours job.
+disk: disk and memory swapings: 
+
+
+
+web reference -https://learn.microsoft.com/en-us/sharepoint/technical-reference/technical-diagrams
+Reference document: file:///C:/Users/Ruwan_Chamonix/Downloads/MinRole_Topology_Tabloid_Nov2018.pdf

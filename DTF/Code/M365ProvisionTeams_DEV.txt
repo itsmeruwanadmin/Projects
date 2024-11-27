@@ -1,0 +1,516 @@
+using namespace System.Net
+
+param($Request)
+
+###############################################
+## TEAMS TEAM SITE
+
+#Required Permissions
+#Microsoft Graph API: Group.ReadWrite.All
+
+# Creates a new team in Microsoft Teams or teamifies an existing Microsoft 365 Group. 
+# If the Microsoft 365 Group does not exist yet, it will create it first and then add a Microsoft Teams team to the group.
+# If it does already exist, it will use the provided Microsoft 365 Group and just teamify it by adding a Microsoft Teams team to it.
+
+#########################################################################
+
+# TODO
+# - change to using connections, testing required
+#    $CONNECTION_SHAREPOINT = Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded -ReturnConnection
+#    $CONNECTION_SHAREPOINTADMIN = Connect-PnPOnline -Url $AdminCenterURL -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded -ReturnConnection
+
+#########################################################################
+##############################################
+
+# Solution Config
+$clientId = $env:ClientId
+$certificateBase64Encoded = $env:Certificate
+$downloadFilePath = $PSScriptRoot
+
+# Tenant Settings
+$tenant = $Request.body.solutionconfiguration.tenant.setting
+$sharepoint_site_url = $Request.body.solutionconfiguration.sharepoint_site_url.setting
+$AdminCenterURL = $Request.body.solutionconfiguration.sharepoint_adminsite_url.setting
+$sharepoint_path = $Request.body.solutionconfiguration.sharepoint_path.setting
+$teams_path = $Request.body.solutionconfiguration.teams_path.setting
+$RequestsListName = $Request.body.solutionconfiguration.request_list_name.setting
+$requests_actions_list_name = $Request.body.solutionconfiguration.requests_actions_list_name.setting
+$provision_teams_master_switch = $Request.body.solutionconfiguration.provision_teams_master_switch.setting
+#$provision_group_master_switch = $Request.body.solutionconfiguration.provision_group_master_switch.Setting
+#$provision_sharepoint_master_switch = $Request.body.solutionconfiguration.provision_sharepoint_master_switch.Setting
+
+# Request Settings
+$RequestsListItemID = $Request.body.request.ID
+$site_url = $Request.body.request.site_url_complete
+$SiteURL = $Request.body.solutionconfiguration.sharepoint_base_url.setting + $teams_path + "/" + $site_url
+$SiteTitle = $Request.body.request.Title
+$sitedescription = $Request.body.request.site_description
+$SiteOwners = $Request.body.request.site_owners
+$SiteMembers = $Request.body.request.site_members
+#$Timezone = $Request.body.request.approval_group_timezone
+#$language = $Request.body.request.approval_group_language
+#$site_locale = $Request.body.request.approval_group_regional_settings
+#$promote_to_hub_site = $Request.body.request.promote_to_hub_site
+#$hub_site_association = $Request.body.request.hub_site_association
+#$site_hubassociation_siteurl = $Request.body.request.site_hubassociation_siteurl
+#$site_storage_size = $Request.body.request.site_storage_size
+#$allow_external_sharing = $Request.body.request.allow_external_sharing
+#$sharing_level = $Request.body.request.sharing_level
+#$linksharingdefaultlevel = $Request.body.request.linksharingdefaultlevel
+#$data_classification = $Request.body.request.data_classification 
+#$retention_policy = $Request.body.request.retention_policy
+#$retention_policy_enabled = $Request.body.request.retention_policy_enabled
+$approval_group_sitecollectionadm = $Request.body.request.approval_group_sitecollectionadm
+$team_useexistinggroup = $Request.body.request.team_useexistinggroup
+$team_useexistinggroupid = $Request.body.request.team_useexistinggroupid
+$team_visibility = $Request.body.request.team_visibility
+$team_showinsearch = $Request.body.request.team_showinsearch
+#$group_hidefromaddresslist = $Request.body.request.group_hidefromaddresslist
+#$group_hidefromoutlook = $Request.body.request.group_hidefromoutlook
+
+# Template Settings
+$templatecustom = $Request.body.request.template_customtemplate
+$templateFileName = $Request.body.request.template_templateexportfilename
+#$SiteType = $Request.body.request.template_basetemplate
+$templateLibUrl = $Request.body.solutionconfiguration.template_library_url.setting
+
+# Sensitivity Labels Extracting From Technical Settings
+$selectedSensitivityLevelLabel = ($Request.body.request.data_classification).trim().replace("(","").replace(")","")
+$sensitivitylevelTechnicalSettings = $Request.body.solutionconfiguration.sensitivity_selections.TechnicalSettings
+$sensitivitylevelTechnicalSettingsArray = $sensitivitylevelTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($sensitivitytechitem in $sensitivitylevelTechnicalSettingsArray){
+    if($sensitivitytechitem -match $selectedSensitivityLevelLabel){
+        #get technical entry from technical settings, remove matching text
+        $selectedSensitivityLevelLabelId = $sensitivitytechitem.Replace($selectedSensitivityLevelLabel + "-","")
+        #write-host $selectedSensitivityLevelLabelId
+    }
+}
+
+# Site Shareing Level From Technical Settings
+$selectedSiteSharingLevelLabel = ($Request.body.request.sharing_level).trim().replace("(","").replace(")","")
+$SiteSharingLevelTechnicalSettings = $Request.body.solutionconfiguration.site_sharing_levels.TechnicalSettings
+$SiteSharingLevelTechnicalSettingsArray = $SiteSharingLevelTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($SiteSharingLeveltechitem in $SiteSharingLevelTechnicalSettingsArray){
+    if($SiteSharingLeveltechitem -match $selectedSiteSharingLevelLabel){
+        #get technical entry from technical settings, remove matching text
+        $sharing_level = $SiteSharingLeveltechitem.Replace($selectedSiteSharingLevelLabel + "-","")
+    }
+}
+
+# Site Storage Quotas From Technical Settings
+$selectedSiteStorageLabel = ($Request.body.request.site_storage_size).trim().replace("(","").replace(")","")
+$SiteStorageTechnicalSettings = $Request.body.solutionconfiguration.site_storage_quotas.TechnicalSettings
+$SiteStorageTechnicalSettingsArray = $SiteStorageTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($SiteStoragetechitem in $SiteStorageTechnicalSettingsArray){
+    if($SiteStoragetechitem -match $selectedSiteStorageLabel){
+        #get technical entry from technical settings, remove matching text
+        $site_storage_size = $SiteStoragetechitem.Replace($selectedSiteStorageLabel + "-","")
+    }
+}
+
+# SiteLocale From Technical Settings
+$selectedSiteLocale = ($Request.body.request.approval_group_regional_settings).trim().replace("(","").replace(")","")
+$SiteLocaleTechnicalSettings = $Request.body.solutionconfiguration.site_regional_settings_locale.TechnicalSettings
+$SiteLocaleTechnicalSettingsArray = $SiteLocaleTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($SiteLocaletechitem in $SiteLocaleTechnicalSettingsArray){
+    if($SiteLocaletechitem -match $selectedSiteLocale){
+        #get technical entry from technical settings, remove matching text
+        $site_locale = $SiteLocaletechitem.Replace($selectedSiteLocale + "-","")
+    }
+}
+
+# LinkSharing Level From Technical Settings
+$selectedLinkSharing = ($Request.body.request.linksharingdefaultlevel).trim().replace("(","").replace(")","")
+$LinkSharingTechnicalSettings = $Request.body.solutionconfiguration.link_sharing_type_default.TechnicalSettings
+$LinkSharingTechnicalSettingsArray = $LinkSharingTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($LinkSharingtechitem in $LinkSharingTechnicalSettingsArray){
+    if($LinkSharingtechitem -match $selectedLinkSharing){
+        #get technical entry from technical settings, remove matching text
+        $linksharingdefaultlevel = $LinkSharingtechitem.Replace($selectedLinkSharing + "-","")
+    }
+}
+
+
+# TimeZone Level From Technical Settings
+$selectedTimeZone = ($Request.body.request.approval_group_timezone).trim().replace("(","").replace(")","")
+$TimeZoneTechnicalSettings = $Request.body.solutionconfiguration.site_regional_setting_timezone.TechnicalSettings
+$TimeZoneTechnicalSettingsArray = $TimeZoneTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($TimeZonetechitem in $TimeZoneTechnicalSettingsArray){
+    if($TimeZonetechitem -match $selectedTimeZone){
+        #get technical entry from technical settings, remove matching text
+        $Timezone = $TimeZonetechitem.Replace($selectedTimeZone + "-","")
+    }
+}
+
+# language From Technical Settings
+$selectedlanguage = ($Request.body.request.approval_group_language).trim().replace("(","").replace(")","")
+$languageTechnicalSettings = $Request.body.solutionconfiguration.language.TechnicalSettings
+$languageTechnicalSettingsArray = $languageTechnicalSettings.replace("(","").replace(")","").Split(",")
+foreach($languagetechitem in $languageTechnicalSettingsArray){
+    if($languagetechitem -match $selectedlanguage){
+        #get technical entry from technical settings, remove matching text
+        $language = $languagetechitem.Replace($selectedlanguage + "-","")
+    }
+}
+ 
+
+###############################################################################################################################
+Write-Host "STAGE: UPDATE REQUEST ITEM STATUS"
+###############################################################################################################################
+
+# request list update
+Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+
+Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_status" = "Started";`
+                                                                                "provision_site" = "Started";`
+                                                                                "status_sendemail"="No";`
+                                                                                "status"="Creating"}
+
+###############################################################################################################################
+Write-Host "STAGE: CHECK MASTER PROVISIONING SWITCH"
+###############################################################################################################################
+
+if($provision_teams_master_switch -eq "On"){
+
+###############################################################################################################################
+    Write-Host "STAGE: TEAMS - PROVISION"
+###############################################################################################################################
+
+    Try {
+
+        $newGroupID = ""
+        # Create New Team
+        Connect-PnPOnline -Url $AdminCenterURL -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+       
+        #Check if site exists already
+        $Site = Get-PnPTenantSite | Where {$_.Url -eq $SiteURL}
+
+        If ($Site -eq $null)
+        {
+            $team_showinsearchBool = ($team_showinsearch -eq "No" ? $false : $true)
+            
+
+            if($team_useexistinggroup -eq "Yes"){
+                #USE EXISTING GROUP AND CREATE TEAMS
+                write-host "Using Existing Team..."
+
+                $newTeam = New-PnPTeamsTeam `
+                    -GroupId $team_useexistinggroupid `
+                    -ShowInTeamsSearchAndSuggestions $team_showinsearchBool
+                
+                $newGroupID = $team_useexistinggroupid
+
+            } else {
+                #CREATE NEW GROUP AND TEAMS
+                write-host "Creating new Team..."
+
+                #create object from owners to use with Teams Group
+                $ownersObjectArray = [System.Collections.ArrayList]::new()
+                foreach($user in $SiteOwners.Split(";")){
+                    [void]$ownersObjectArray.Add($user)
+                }
+
+                #create object from owners to use with Teams Group
+                #$membersObjectArray = [System.Collections.ArrayList]::new()
+                #foreach($user in $SiteMembers.Split(";")){
+                #    [void]$membersObjectArray.Add($user)
+                #}
+
+                # $newGroupAndTeam = New-PnPTeamsTeam `
+                #     -DisplayName $SiteTitle `
+                #     -Visibility $team_visibility `
+                #     -ShowInTeamsSearchAndSuggestions $team_showinsearchBool `
+                #     -MailNickName $site_url `
+                #     -ResourceBehaviorOptions HideGroupInOutlook `
+                #     -Owners $ownersObjectArray `
+                #     -Members $membersObjectArray
+
+                #for Teams site we hide both as not primary use
+                $HideFromAddressLists = $true
+                $HideFromOutlookClients = $true
+
+                $newGroupAndTeam = New-PnPMicrosoft365Group `
+                    -DisplayName $SiteTitle `
+                    -Description $sitedescription `
+                    -MailNickname $site_url `
+                    -Owners $ownersObjectArray `
+                    -IsPrivate `
+                    -HideFromAddressLists $HideFromAddressLists `
+                    -HideFromOutlookClients $HideFromOutlookClients `
+                    -CreateTeam `
+                    -Force
+
+                    #-SensitivityLabels $selectedSensitivityLevelLabelId `
+
+                # $isPrivate = ($team_visibility = "Private" ? $true : $false)
+                # $newGroup = New-PnPMicrosoft365Group `
+                #     -DisplayName $SiteTitle `
+                #     -Description $sitedescription `
+                #     -MailNickname $site_url `
+                #     -Owners $teamRequestOwners `
+                #     -Members $teamRequestMembers `
+                #     -CreateTeam `
+                #     -Force `
+                #     -IsPrivate:([bool]::Parse($isPrivate))
+                #-ShowInTeamsSearchAndSuggestions $team_showinsearchBool `
+
+                $newGroupID = $newGroupAndTeam.id
+
+            }
+
+            write-host "Site Collection $($SiteURL) Created Successfully!" -foregroundcolor Green
+
+            # connect to App SharePoint Site
+            Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+            # update request status
+            Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_site" = "Completed";`
+                                                                                            "provision_link" = $SiteURL;`
+                                                                                            "provision_groupid" = $newGroupID;`
+                                                                                            "provision_template"="Starting"}
+
+            Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                            "action_by"="Provisioning Engine"; `
+                                                                                            "Title"="Provisioning - Team"; `
+                                                                                            "details"="Completed"}
+
+     ###############################################################################################################################
+     Write-Host "STAGE: TEMPLATE - GET AND APPLY"
+     ###############################################################################################################################
+ 
+             if($templatecustom -eq "Yes"){
+ 
+                 # Dowload Template File to local store
+                 Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+                 $templateRelUrl = ($templateLibUrl -Split '/' | Select-Object -Skip 3) -Join '/'
+                 $templateFileUrl = "/" + $templateRelUrl + "/" + $templateFileName
+                 Get-PnPFile -Url $templateFileUrl -Path $downloadFilePath -FileName $templateFileName -AsFile -Force
+ 
+                 # Apply Template
+                 Connect-PnPOnline -Url $AdminCenterURL -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+                 #Connect-PnPOnline -Url $AdminCenterURL -Interactive 
+                 $templateFilePath = $downloadFilePath + "\" + $templateFileName
+ 
+ 
+                 # Debug Template Logs use trace
+                 # Set-PnPTraceLog -On -LogFile "C:\log.txt" -Level debug
+ 
+                 Invoke-PnPTenantTemplate -Path $templateFilePath -Parameters @{"GroupId"=$newGroupID}
+                     
+                 # Invoke-PnPTenantTemplate -Path .\teamtemplate.pnp `
+                 # -Parameters @{"TeamTitle"="$($teamRequestDisplayName)"; `
+                 #             "TeamAlias"="$($teamRequestMailboxAlias)"; `
+                 #             "Owner1"="$($owners[0])"; `
+                 #             "Owner2"="$($owners[1])"; `
+                 #             "NoteBookId"="$($noteBookId)"; `
+                 #             "SharePointUrl"="$($rootUrl)/sites/$($teamRequestMailboxAlias)"; `
+                 #             "GroupId"="$($newGroup.Id)"; `
+                 #             "SourceDoc"="$($sourceDoc)" `
+                 #         }
+ 
+                 # Reset Visibility post default added via template
+                 if($team_visibility -eq "Public") {
+                     Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate:$False
+                 } else {
+                     Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate
+                 }
+ 
+                 # Update Request Actions List
+                 Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                             "action_by"="Provisioning Engine"; `
+                                                                             "Title"="Provisioning - Template Apply"; `
+                                                                             "details"="Applied and Completed"}
+
+                # connect to App SharePoint Site
+                Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+                # update request status
+                Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_template"="Completed";`
+                                                                                                "provision_config"="Starting"}
+
+ 
+             } else {
+ 
+                 # connect to App SharePoint Site
+                 Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+                 # request list update
+                 Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_template"="Skipped"}
+ 
+             }                                                                                           
+
+    ###############################################################################################################################
+            Write-Host "STAGE: TEAMS - SET SETTINGS & OWNERS/MEMBERS"
+    ###############################################################################################################################
+
+            #connect to site                                                                    
+            Connect-PnPOnline -Url $SiteURL -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+
+            # Set setting to use in next call
+            if ($linksharingdefaultlevel -eq "Existing Access Only" ) {
+                $defaultLinkToExistingAccessSetting = $true
+                $linksharingdefaultlevel = "None"
+            } else {
+                $defaultLinkToExistingAccessSetting = $false
+            }
+
+            # set site settings
+            Set-PnPSite -Identity $SiteURL `
+            -Sharing $sharing_level `
+            -Owners $approval_group_sitecollectionadm `
+            -StorageMaximumLevel $site_storage_size `
+            -DefaultSharingLinkType $linksharingdefaultlevel `
+            -DefaultLinkToExistingAccess $defaultLinkToExistingAccessSetting
+
+            #For Teams Sites With Office 365 Groups
+            Add-PnPSiteCollectionAdmin -Owners $approval_group_sitecollectionadm 
+
+            # Set site settings no possible using above Set-PnPSite
+            $web = Get-PnPWeb -Includes HeaderEmphasis,HeaderLayout,SiteLogoUrl,RegionalSettings.LocaleId,RegionalSettings.TimeZones
+            #$web.HeaderLayout = "Standard"   # Options: Standard, Compact
+            #$web.HeaderEmphasis = "Strong"  # Options None, Neutral, Soft, Strong
+            #$web.SiteLogoUrl = $siteLogoUrl     # Set the site Logo
+            $web.RegionalSettings.LocaleId = $site_locale #set the site locale
+            $NewTimeZone  = $Web.RegionalSettings.TimeZones | Where-Object {$_.Description -match "Adelaide"}
+            $web.RegionalSettings.TimeZone = $NewTimeZone
+            $web.Update()
+            Invoke-PnPQuery
+
+            if($team_useexistinggroup -eq "No"){
+                # # set owners and members depending on M365 Group of SharePoint Groups
+                # $OwnersArray = $SiteOwners.split(";")
+
+                # # Set Owners
+                # foreach ($owner in $OwnersArray) {
+                #     Add-PnPMicrosoft365GroupOwner -Identity $NewSite.GroupId -Users $owner -ErrorAction Continue
+                # }
+
+                #check for null site members
+                if($SiteMembers -ne $null){
+                    $MembersArray = $SiteMembers.split(";")
+                    $NewSite = Get-PnPSite -Includes GroupId
+                    # Set Members
+                    foreach ($member in $MembersArray) {
+                        Add-PnPMicrosoft365GroupMember -Identity $NewSite.GroupId -Users $member -ErrorAction Continue
+                    }
+                }
+            }
+
+            # Reset Visibility post default added via template
+            if($team_visibility -eq "Public") {
+                Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate:$False
+            } else {
+                Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate
+            }
+
+            #Check if site exists already
+            if($data_classification -ne "None"){
+                Write-Host "SENSITIVITY LABEL - waiting to apply / ID: $selectedSensitivityLevelLabelId"
+                Set-PnPTenantSite -Identity $SiteURL -SensitivityLabel $selectedSensitivityLevelLabelId
+            }
+
+            # connect to App SharePoint Site
+            Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+            # request list update
+            Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_config"="Completed"}
+
+            Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                            "action_by"="Provisioning Engine"; `
+                                                                                            "Title"="Provisioning - Team Configuration"; `
+                                                                                            "details"="Applied and Completed"}                                                                             
+
+
+
+    ###############################################################################################################################
+    Write-Host "STAGE: COMPLETED"
+    ###############################################################################################################################
+
+            #request list update
+            Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+            Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_status" = "Completed";`
+                                                                                            "status_sendemail"="Yes";`
+                                                                                            "status"="Completed"}
+
+            Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                            "action_by"="Provisioning Engine"; `
+                                                                                            "Title"="Provisioning - Completed"; `
+                                                                                            "details"="Process Finished"}    
+
+            #REAPPLY DUE TO SHAREPOINT NOT BEING CREATED UNTIL LATE    
+            start-sleep -Seconds 120                                                           
+            # Reset Visibility post default added via template
+            if($team_visibility -eq "Public") {
+                Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate:$False
+            } else {
+                Set-PnPMicrosoft365Group -Identity $newGroupID -IsPrivate
+            }
+
+            #Check if site exists already
+            if($data_classification -ne "None"){
+                Write-Host "SENSITIVITY LABEL - waiting to apply / ID: $selectedSensitivityLevelLabelId"
+                Set-PnPTenantSite -Identity $SiteURL -SensitivityLabel $selectedSensitivityLevelLabelId
+            }                                                                                
+
+        } else{
+
+###############################################################################################################################
+            Write-Host "STAGE: SKIPPED PROCESS - SITE FOUND ON EXISTING URL"
+###############################################################################################################################
+            #Site with URL already exist
+            write-host "Site $($SiteURL) exists already!" -foregroundcolor Yellow
+
+            #request list update
+            Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+            Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_status" = "Existing site found on URL requested";`
+                                                                                            "provision_site" = "Error";`
+                                                                                            "provision_config"=" ";`
+                                                                                            "provision_template"=" ";`
+                                                                                            "status_sendemail"="Yes";`
+                                                                                            "status"="Error"}
+
+            Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                            "action_by"="Provisioning Engine"; `
+                                                                                            "Title"="Provisioning - Error Encountered"; `
+                                                                                            "details"="Existing Team found on URL requested - Process Skipped, Please change URL and resubmit"}
+ 
+
+        }
+
+    } catch {
+
+###############################################################################################################################
+        Write-Host "STAGE: ERROR PROCESS"
+###############################################################################################################################
+        
+        write-host "Error: $($_.Exception.Message)" -foregroundcolor Red
+
+        Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+        Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_status" = $_.Exception.Message;`
+                                                                                        "status_sendemail"="Yes";`
+                                                                                        "status"="Error"}
+
+        Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                        "action_by"="Provisioning Engine"; `
+                                                                                        "Title"="Provisioning - Error Encountered"; `
+                                                                                        "details"= $_.Exception.Message}
+
+    }
+
+} else {
+                                                                                
+###############################################################################################################################
+    Write-Host "STAGE: PROVISION MASTER SWITCH TURNED OFF"
+###############################################################################################################################
+    Connect-PnPOnline -Url $sharepoint_site_url -Tenant $tenant -ClientId $clientId -CertificateBase64Encoded $certificateBase64Encoded
+    Set-PnPListItem -List $RequestsListName -Identity $RequestsListItemID -Values @{"provision_status" = "master switch turned off";`
+                                                                                    "status_sendemail"="Yes";`
+                                                                                    "status"="Error"}
+
+    Add-PnPListItem -List $requests_actions_list_name -Values @{"request_id" = $RequestsListItemID; `
+                                                                                    "action_by"="Provisioning Engine"; `
+                                                                                    "Title"="Provisioning - Error Encountered"; `
+                                                                                    "details"= "Master provisioning switch turned off - Please Contact Solution Administrator"}
+                                                                                    
+}
+    
+###############################################################################################################################
+Write-Host "STAGE: Script-End"
+###############################################################################################################################
+   
